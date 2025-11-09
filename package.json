@@ -1,0 +1,20 @@
+{
+  "name": "npmtest",
+  "version": "1.0.5-alpha.7",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "version:alpha": "npm version prerelease --preid=alpha --no-git-tag-version",
+    "publish:alpha": "npm run version:alpha && npm publish --tag alpha",
+    "publish:alpha:provenance": "npm run version:alpha && npm publish --provenance --tag alpha",
+    "publish:alpha:provenance-file": "npm run version:alpha && npm publish --provenance-file ./attestation.json --tag alpha"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "loaddash": "^0.0.1-security",
+    "lodash": "^4.17.19"
+  }
+}
