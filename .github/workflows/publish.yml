@@ -171,6 +171,27 @@ jobs:
           echo ""
           echo "=== DEBUG: Dry-run output saved to publish-dryrun.log ==="
       
+      - name: Debug - Try to see npm's internal publish metadata (if possible)
+        run: |
+          echo "=== DEBUG: Attempting to inspect npm's publish metadata preparation ==="
+          echo "This step tries to see what npm prepares before sending to registry"
+          echo ""
+          echo "=== DEBUG: npm pack output (shows what goes into tarball) ==="
+          npm pack 2>&1 | head -30
+          echo ""
+          echo "=== DEBUG: Checking for any temporary files npm creates ==="
+          find /tmp -name "*npm*" -o -name "*publish*" 2>/dev/null | head -10 || echo "No temp files found"
+          echo ""
+          echo "=== DEBUG: npm cache location contents ==="
+          CACHE_DIR=$(npm config get cache)
+          if [ -d "$CACHE_DIR" ]; then
+            echo "Cache dir: $CACHE_DIR"
+            ls -la "$CACHE_DIR" | head -10
+          fi
+          echo ""
+          echo "=== DEBUG: Checking npm's internal state ==="
+          npm config list --json 2>/dev/null | head -50 || npm config list | head -50
+      
       - name: Publish to JFrog Artifactory
         run: |
           TAG="${{ inputs.tag || 'alpha' }}"
