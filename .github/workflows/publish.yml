@@ -87,44 +87,9 @@ jobs:
         run: |
           echo "Publishing version: ${{ steps.version.outputs.version || 'unknown' }}"
       
-      - name: Check registry type
-        id: registry-check
-        run: |
-          # Get registry URL from npm config
-          REGISTRY_URL=$(npm config get registry)
-          echo "Detected registry: $REGISTRY_URL"
-          if echo "$REGISTRY_URL" | grep -qi "jfrog\|artifactory"; then
-            echo "registry_type=jfrog" >> $GITHUB_OUTPUT
-            echo "✓ Detected JFrog Artifactory registry (provenance not supported)"
-          elif echo "$REGISTRY_URL" | grep -qi "npmjs\|registry.npmjs.org"; then
-            echo "registry_type=npmjs" >> $GITHUB_OUTPUT
-            echo "✓ Detected npmjs.com registry (provenance supported)"
-          else
-            # Default to npmjs for unknown registries
-            echo "registry_type=npmjs" >> $GITHUB_OUTPUT
-            echo "⚠ Unknown registry, defaulting to npmjs.com behavior"
-          fi
-      
-      - name: Publish to npm with provenance (npmjs.com only)
-        id: publish-provenance
-        if: steps.registry-check.outputs.registry_type == 'npmjs'
+      - name: Publish to JFrog Artifactory
         run: |
           TAG="${{ inputs.tag || 'alpha' }}"
-          echo "Publishing with tag: $TAG and provenance (npmjs.com)"
-          npm publish --provenance --access public --tag "$TAG" || echo "provenance_failed=true" >> $GITHUB_OUTPUT
-        continue-on-error: true
-      
-      - name: Publish to JFrog Artifactory (without provenance)
-        id: publish-jfrog
-        if: steps.registry-check.outputs.registry_type == 'jfrog'
-        run: |
-          TAG="${{ inputs.tag || 'alpha' }}"
-          echo "Publishing to JFrog Artifactory with tag: $TAG (provenance not supported)"
-          npm publish --access public --tag "$TAG"
-      
-      - name: Fallback publish without provenance (if provenance fails on npmjs)
-        if: steps.registry-check.outputs.registry_type == 'npmjs' && (steps.publish-provenance.outcome == 'failure' || steps.publish-provenance.outputs.provenance_failed == 'true')
-        run: |
-          echo "⚠️ Provenance failed, publishing without provenance..."
-          TAG="${{ inputs.tag || 'alpha' }}"
+          echo "Publishing to JFrog Artifactory with tag: $TAG"
+          echo "Note: Provenance is not supported by JFrog Artifactory, publishing without it"
           npm publish --access public --tag "$TAG"
