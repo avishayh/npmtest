@@ -149,3 +149,9 @@ Thumbs.db
 attestation.json
 # Remove attestation.json from gitignore if you want to commit it
 
+# Local provenance environment (safe to commit, but optional)
+# .env.provenance
+
+# act secrets (never commit!)
+.secrets
+

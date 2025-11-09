@@ -1,0 +1,15 @@
+# act configuration file
+# See: https://github.com/nektos/act#configuration
+
+# Use larger runner image for better compatibility
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+
+# Secrets file (create .secrets file with your secrets)
+# --secret-file .secrets
+
+# Environment variables
+# -e KEY=value
+
+# Bind secrets (for local testing)
+# --secret NPM_TOKEN=your-token-here
+

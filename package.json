@@ -7,7 +7,10 @@
     "version:alpha": "npm version prerelease --preid=alpha --no-git-tag-version",
     "publish:alpha": "npm run version:alpha && npm publish --tag alpha",
     "publish:alpha:provenance": "npm run version:alpha && npm publish --provenance --tag alpha",
-    "publish:alpha:provenance-file": "npm run version:alpha && npm publish --provenance-file ./attestation.json --tag alpha"
+    "setup:provenance": "./setup-local-provenance.sh",
+    "publish:alpha:local-provenance": "source .env.provenance 2>/dev/null || true && npm run version:alpha && npm publish --provenance --tag alpha",
+    "publish:alpha:act": "./act-publish.sh alpha prerelease",
+    "publish:latest:act": "./act-publish.sh latest patch"
   },
   "keywords": [],
   "author": "",

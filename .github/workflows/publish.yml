@@ -1,0 +1,105 @@
+name: Publish Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Distribution tag (alpha, beta, latest)'
+        required: false
+        default: 'alpha'
+      version_bump:
+        description: 'Version bump type (prerelease, patch, minor, major)'
+        required: false
+        default: 'prerelease'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/publish.yml'
+  # Allow manual trigger for act testing
+  workflow_call:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC/provenance
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for versioning
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://evidencetrial.jfrog.io/artifactory/api/npm/evidence-dev-npm/'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      
+      - name: Configure npm for JFrog Artifactory
+        run: |
+          echo "Configuring npm for JFrog Artifactory..."
+          # Try to get token from secret or environment variable
+          TOKEN="${{ secrets.NPM_TOKEN }}"
+          if [ -z "$TOKEN" ] && [ -n "$NPM_TOKEN" ]; then
+            TOKEN="$NPM_TOKEN"
+            echo "Using NPM_TOKEN from environment variable"
+          elif [ -z "$TOKEN" ]; then
+            echo "ERROR: NPM_TOKEN is not set in secrets or environment!"
+            exit 1
+          else
+            echo "Using NPM_TOKEN from secrets"
+          fi
+          echo "Token length: ${#TOKEN} chars"
+          # Find where npm looks for config (setup-node might set NPM_CONFIG_USERCONFIG)
+          NPMRC_LOC="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          echo "Using .npmrc at: $NPMRC_LOC"
+          # JFrog Artifactory uses _auth format, not _authToken
+          echo "registry=https://evidencetrial.jfrog.io/artifactory/api/npm/evidence-dev-npm/" > "$NPMRC_LOC"
+          echo "always-auth=true" >> "$NPMRC_LOC"
+          echo "//evidencetrial.jfrog.io/artifactory/api/npm/evidence-dev-npm/:_auth=$TOKEN" >> "$NPMRC_LOC"
+          echo "npmrc configured successfully at $NPMRC_LOC"
+          echo "Verifying .npmrc contents (redacted):"
+          cat "$NPMRC_LOC" | sed 's/\(_auth=\).*/\1***REDACTED***/'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Bump version
+        id: version
+        run: |
+          VERSION_BUMP="${{ inputs.version_bump || 'prerelease' }}"
+          if [ "$VERSION_BUMP" == "prerelease" ]; then
+            npm version prerelease --preid=alpha --no-git-tag-version
+          elif [ "$VERSION_BUMP" == "patch" ]; then
+            npm version patch --no-git-tag-version
+          elif [ "$VERSION_BUMP" == "minor" ]; then
+            npm version minor --no-git-tag-version
+          elif [ "$VERSION_BUMP" == "major" ]; then
+            npm version major --no-git-tag-version
+          fi
+          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      
+      - name: Display version
+        run: |
+          echo "Publishing version: ${{ steps.version.outputs.version || 'unknown' }}"
+      
+      - name: Publish to npm with provenance
+        id: publish-provenance
+        run: |
+          TAG="${{ inputs.tag || 'alpha' }}"
+          echo "Publishing with tag: $TAG"
+          npm publish --provenance --tag "$TAG" || echo "provenance_failed=true" >> $GITHUB_OUTPUT
+        continue-on-error: true
+      
+      - name: Fallback publish without provenance (if provenance fails)
+        if: steps.publish-provenance.outcome == 'failure' || steps.publish-provenance.outputs.provenance_failed == 'true'
+        run: |
+          echo "⚠️ Provenance failed, publishing without provenance..."
+          TAG="${{ inputs.tag || 'alpha' }}"
+          # Explicitly disable provenance
+          npm publish --tag "$TAG" --no-provenance || npm publish --tag "$TAG"
+
