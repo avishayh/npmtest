@@ -54,7 +54,7 @@ Body: {
   "dist-tags": {
     "alpha": "1.0.5-alpha.9"
   },
-  "attestations": {  // ← THIS IS THE PROBLEM (inferred structure)
+  "attestations": {  // ← THIS IS THE PROBLEM (inferred structure - see note below)
     "provenance": {
       "url": "https://search.sigstore.dev/?logIndex=685790670",
       "predicateType": "https://slsa.dev/provenance/v1",
@@ -65,13 +65,21 @@ Body: {
       }
     }
   }
-  
-  **Note:** The exact structure of the `attestations` field is inferred from:
-  - npm's behavior of generating provenance
-  - The error occurring on the PUT metadata request
-  - Standard SLSA provenance format
-  - The actual structure may differ - this is an approximation
 }
+```
+
+**Note:** The exact structure of the `attestations` field shown above is **inferred** from:
+- npm's behavior of generating provenance when `--provenance` flag is used
+- The error occurring on the PUT metadata request (400 Bad Request)
+- Standard SLSA provenance format
+- The actual structure sent by npm may differ - this is an approximation based on:
+  - [npm provenance documentation](https://docs.npmjs.com/generating-provenance-statements/)
+  - [SLSA Provenance specification](https://slsa.dev/provenance/v1)
+  
+**What we know for certain:**
+- npm includes provenance data in the PUT request to update package metadata
+- JFrog Artifactory returns 400 Bad Request, indicating it doesn't recognize/accept this data
+- The exact field name and structure would need to be verified by inspecting actual npm HTTP requests
 ```
 
 **JFrog Artifactory Response:**
