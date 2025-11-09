@@ -93,13 +93,3 @@ jobs:
           TAG="${{ inputs.tag || 'alpha' }}"
           echo "Publishing with tag: $TAG and provenance"
           npm publish --provenance --access public --tag "$TAG" || echo "provenance_failed=true" >> $GITHUB_OUTPUT
-        continue-on-error: true
-      
-      - name: Fallback publish without provenance (if provenance fails)
-        if: steps.publish-provenance.outcome == 'failure' || steps.publish-provenance.outputs.provenance_failed == 'true'
-        run: |
-          echo "⚠️ Provenance failed, publishing without provenance..."
-          TAG="${{ inputs.tag || 'alpha' }}"
-          # Explicitly disable provenance
-          npm publish --access public --tag "$TAG" --no-provenance || npm publish --access public --tag "$TAG"
-
