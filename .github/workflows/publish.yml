@@ -87,9 +87,114 @@ jobs:
         run: |
           echo "Publishing version: ${{ steps.version.outputs.version || 'unknown' }}"
       
+      - name: Debug - Show package.json
+        run: |
+          echo "=== DEBUG: Current package.json ==="
+          cat package.json
+          echo ""
+          echo "=== DEBUG: Package version ==="
+          node -p "require('./package.json').version"
+          echo ""
+          echo "=== DEBUG: Package name ==="
+          node -p "require('./package.json').name"
+      
+      - name: Debug - Show npm configuration
+        run: |
+          echo "=== DEBUG: npm configuration ==="
+          npm config list
+          echo ""
+          echo "=== DEBUG: npm registry ==="
+          npm config get registry
+          echo ""
+          echo "=== DEBUG: npm cache location ==="
+          npm config get cache
+          echo ""
+          echo "=== DEBUG: npm tmp location ==="
+          npm config get tmp
+          echo ""
+          echo "=== DEBUG: NPM_CONFIG_USERCONFIG ==="
+          echo "$NPM_CONFIG_USERCONFIG"
+          echo ""
+          echo "=== DEBUG: .npmrc contents (redacted) ==="
+          if [ -f "$NPM_CONFIG_USERCONFIG" ]; then
+            cat "$NPM_CONFIG_USERCONFIG" | sed 's/\(_auth=\).*/\1***REDACTED***/'
+          elif [ -f "$HOME/.npmrc" ]; then
+            cat "$HOME/.npmrc" | sed 's/\(_auth=\).*/\1***REDACTED***/'
+          else
+            echo "No .npmrc found"
+          fi
+      
+      - name: Debug - Create tarball and inspect
+        run: |
+          echo "=== DEBUG: Creating tarball for inspection ==="
+          npm pack --dry-run
+          echo ""
+          echo "=== DEBUG: Files that will be published ==="
+          npm pack --dry-run 2>&1 | grep -E "npm notice|\.tgz" | head -30
+          echo ""
+          echo "=== DEBUG: Creating actual tarball ==="
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TARBALL="${PACKAGE_NAME}-${PACKAGE_VERSION}.tgz"
+          npm pack
+          echo ""
+          echo "=== DEBUG: Tarball created: $TARBALL ==="
+          ls -lh "$TARBALL"
+          echo ""
+          echo "=== DEBUG: Tarball contents ==="
+          tar -tzf "$TARBALL" | head -20
+          echo ""
+          echo "=== DEBUG: package.json from tarball ==="
+          tar -xzf "$TARBALL" package/package.json -O | head -50
+      
+      - name: Debug - Show environment variables
+        run: |
+          echo "=== DEBUG: Environment variables ==="
+          echo "NODE_AUTH_TOKEN is set: $([ -n "$NODE_AUTH_TOKEN" ] && echo 'yes' || echo 'no')"
+          echo "NPM_TOKEN is set: $([ -n "$NPM_TOKEN" ] && echo 'yes' || echo 'no')"
+          echo "GITHUB_ACTIONS: $GITHUB_ACTIONS"
+          echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
+          echo "GITHUB_REF: $GITHUB_REF"
+          echo "GITHUB_SHA: $GITHUB_SHA"
+          echo ""
+          echo "=== DEBUG: Working directory ==="
+          pwd
+          echo ""
+          echo "=== DEBUG: Files in current directory ==="
+          ls -la | head -20
+      
       - name: Publish to JFrog Artifactory
         run: |
           TAG="${{ inputs.tag || 'alpha' }}"
-          echo "Publishing to JFrog Artifactory with tag: $TAG"
+          echo "=== Publishing to JFrog Artifactory ==="
+          echo "Tag: $TAG"
           echo "Note: Provenance is not supported by JFrog Artifactory, publishing without it"
-          npm publish --access public --tag "$TAG"
+          echo ""
+          echo "=== DEBUG: Running npm publish with verbose logging ==="
+          NPM_CONFIG_LOGLEVEL=verbose npm publish --access public --tag "$TAG" 2>&1 | tee publish-output.log
+          echo ""
+          echo "=== DEBUG: Publish output saved to publish-output.log ==="
+        env:
+          NPM_CONFIG_LOGLEVEL: verbose
+      
+      - name: Debug - Show publish logs
+        if: always()
+        run: |
+          echo "=== DEBUG: Publish output log ==="
+          if [ -f publish-output.log ]; then
+            cat publish-output.log
+          else
+            echo "No publish-output.log found"
+          fi
+          echo ""
+          echo "=== DEBUG: npm debug logs location ==="
+          find ~/.npm/_logs -name "*.log" -type f -mmin -5 2>/dev/null | head -5
+          echo ""
+          echo "=== DEBUG: Latest npm debug log (last 100 lines) ==="
+          LATEST_LOG=$(find ~/.npm/_logs -name "*.log" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
+          if [ -n "$LATEST_LOG" ] && [ -f "$LATEST_LOG" ]; then
+            echo "Log file: $LATEST_LOG"
+            tail -100 "$LATEST_LOG"
+          else
+            echo "No debug log found"
+          fi
