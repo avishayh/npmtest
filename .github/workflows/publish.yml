@@ -163,6 +163,14 @@ jobs:
           echo "=== DEBUG: Files in current directory ==="
           ls -la | head -20
       
+      - name: Debug - Show what npm will publish (dry-run)
+        run: |
+          echo "=== DEBUG: npm publish dry-run ==="
+          TAG="${{ inputs.tag || 'alpha' }}"
+          npm publish --dry-run --access public --tag "$TAG" 2>&1 | tee publish-dryrun.log
+          echo ""
+          echo "=== DEBUG: Dry-run output saved to publish-dryrun.log ==="
+      
       - name: Publish to JFrog Artifactory
         run: |
           TAG="${{ inputs.tag || 'alpha' }}"
@@ -170,31 +178,57 @@ jobs:
           echo "Tag: $TAG"
           echo "Note: Provenance is not supported by JFrog Artifactory, publishing without it"
           echo ""
-          echo "=== DEBUG: Running npm publish with verbose logging ==="
-          NPM_CONFIG_LOGLEVEL=verbose npm publish --access public --tag "$TAG" 2>&1 | tee publish-output.log
+          echo "=== DEBUG: Running npm publish with maximum logging ==="
+          echo "This will show HTTP requests and responses"
+          NPM_CONFIG_LOGLEVEL=silly npm publish --access public --tag "$TAG" 2>&1 | tee publish-output.log
           echo ""
           echo "=== DEBUG: Publish output saved to publish-output.log ==="
         env:
-          NPM_CONFIG_LOGLEVEL: verbose
+          NPM_CONFIG_LOGLEVEL: silly
+          NODE_DEBUG: http,https
       
       - name: Debug - Show publish logs
         if: always()
         run: |
-          echo "=== DEBUG: Publish output log ==="
+          echo "=== DEBUG: Publish output log (showing HTTP requests) ==="
           if [ -f publish-output.log ]; then
-            cat publish-output.log
+            echo "--- HTTP Requests/Responses ---"
+            grep -E "(http fetch|PUT|GET|POST|Request|Response|status|headers)" publish-output.log | head -50 || echo "No HTTP details found"
+            echo ""
+            echo "--- Full publish output (last 200 lines) ---"
+            tail -200 publish-output.log
           else
             echo "No publish-output.log found"
+          fi
+          echo ""
+          echo "=== DEBUG: Dry-run log ==="
+          if [ -f publish-dryrun.log ]; then
+            cat publish-dryrun.log
           fi
           echo ""
           echo "=== DEBUG: npm debug logs location ==="
           find ~/.npm/_logs -name "*.log" -type f -mmin -5 2>/dev/null | head -5
           echo ""
-          echo "=== DEBUG: Latest npm debug log (last 100 lines) ==="
+          echo "=== DEBUG: Latest npm debug log (showing HTTP details) ==="
           LATEST_LOG=$(find ~/.npm/_logs -name "*.log" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
           if [ -n "$LATEST_LOG" ] && [ -f "$LATEST_LOG" ]; then
             echo "Log file: $LATEST_LOG"
-            tail -100 "$LATEST_LOG"
+            echo "--- HTTP-related lines ---"
+            grep -E "(http|PUT|GET|POST|Request|Response|status|headers|body)" "$LATEST_LOG" | head -100 || echo "No HTTP details in log"
+            echo ""
+            echo "--- Last 150 lines of log ---"
+            tail -150 "$LATEST_LOG"
           else
             echo "No debug log found"
+          fi
+          echo ""
+          echo "=== DEBUG: Tarball still exists? ==="
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TARBALL="${PACKAGE_NAME}-${PACKAGE_VERSION}.tgz"
+          if [ -f "$TARBALL" ]; then
+            echo "Tarball exists: $TARBALL"
+            ls -lh "$TARBALL"
+          else
+            echo "Tarball not found: $TARBALL"
           fi
